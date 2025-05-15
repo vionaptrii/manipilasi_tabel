@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Data Kawan</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+      position: relative;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .edit-input {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .edit-buttons {
+      margin-top: 5px;
+    }
+    .edit-buttons button {
+      margin-right: 5px;
+    }
+    .error {
+      color: red;
+      font-size: 12px;
+    }
+    #addBtn {
+      padding: 8px 12px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    #addBtn:hover {
+      background-color: #218838;
+    }
+  </style>
+</head>
+<body>
+  <h2>Data Kawan</h2>
+  <table id="kawanTable">
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>NIM</th>
+        <th>Nama</th>
+        <th>Kelas</th>
+        <th>Prodi</th>
+        <th>Alamat</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Data akan diisi oleh JavaScript -->
+    </tbody>
+  </table>
+  <button id="addBtn">Add</button>
+
+  <script>
+    let dataKawan = [];
+
+    // Fungsi untuk menyimpan data ke cookie
+    function saveToCookie() {
+      document.cookie = "dataKawan=" + encodeURIComponent(JSON.stringify(dataKawan)) + "; path=/";
+    }
+
+    // Fungsi untuk membaca data dari cookie
+    function loadFromCookie() {
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'dataKawan') {
+          try {
+            dataKawan = JSON.parse(decodeURIComponent(value));
+          } catch (e) {
+            dataKawan = [];
+          }
+          break;
+        }
+      }
+    }
+
+    // Fungsi untuk menyimpan data ke serverless API (data.js)
+    function saveToServerless() {
+      fetch('data.js', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(dataKawan)
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Gagal menyimpan data ke serverless API');
+        }
+      })
+      .catch(error => {
+        console.error(error);
+      });
+    }
+
+    // Fungsi untuk merender tabel
+    function renderTable() {
+      const tbody = document.querySelector('#kawanTable tbody');
+      tbody.innerHTML = '';
+      dataKawan.forEach((kawan, index) => {
+        const tr = document.createElement('tr');
+
+        // Kolom No
+        const tdNo = document.createElement('td');
+        tdNo.textContent = index + 1;
+        tr.appendChild(tdNo);
+
+        // Kolom lainnya
+        ['nim', 'nama', 'kelas', 'prodi', 'alamat'].forEach(field => {
+          const td = document.createElement('td');
+          td.textContent = kawan[field];
+          td.addEventListener('dblclick', () => editCell(td, field, index));
+          tr.appendChild(td);
+        });
+
+        // Kolom Aksi
+        const tdAksi = document.createElement('td');
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', () => {
+          dataKawan.splice(index, 1);
+          saveToCookie();
+          saveToServerless();
+          renderTable();
+        });
+        tdAksi.appendChild(delBtn);
+        tr.appendChild(tdAksi);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Fungsi untuk mengedit sel
+    function editCell(td, field, index) {
+      const originalValue = td.textContent;
+      td.innerHTML = '';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = originalValue;
+      input.className = 'edit-input';
+      td.appendChild(input);
+
+      const errorSpan = document.createElement('span');
+      errorSpan.className = 'error';
+      td.appendChild(errorSpan);
+
+      const btnContainer = document.createElement('div');
+      btnContainer.className = 'edit-buttons';
+
+      const okBtn = document.createElement('button');
+      okBtn.textContent = 'OK';
+      okBtn.addEventListener('click', () => {
+        const newValue = input.value.trim();
+        let isValid = true;
+
+        // Validasi
+        if (field === 'nim') {
+          if (!/^\d{9}$/.test(newValue)) {
+            errorSpan.textContent = 'NIM harus 9 digit angka';
+            isValid = false;
+          }
+        } else if (field === 'nama') {
+          if (!/^[A-Za-z ]+$/.test(newValue)) {
+            errorSpan.textContent = 'Nama hanya boleh huruf dan spasi';
+            isValid = false;
+          }
+        }
+
+        if (isValid) {
+          dataKawan[index][field] = newValue;
+          saveToCookie();
+          saveToServerless();
+          renderTable();
+        }
+      });
+      btnContainer.appendChild(okBtn);
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.addEventListener('click', () => {
+        td.textContent = originalValue;
+      });
+      btnContainer.appendChild(cancelBtn);
+
+      td.appendChild(btnContainer);
+    }
+
+    // Fungsi untuk menambahkan baris baru
+    document.getElementById('addBtn').addEventListener('click', () => {
+      dataKawan.push({
+        nim: '123456789',
+        nama: 'Nama Kawan',
+        kelas: 'A',
+        prodi: 'Teknik',
+        alamat: 'Bandung'
+      });
+      saveToCookie();
+      saveToServerless();
+      renderTable();
+    });
+
+    // Inisialisasi
+    loadFromCookie();
+    if (dataKawan.length === 0) {
+      // Data dummy awal
+      dataKawan = [
+        { nim: '123456789', nama: 'Vera', kelas: 'A', prodi: 'Informatika', alamat: 'Bandung' },
+        { nim: '987654321', nama: 'Nabila', kelas: 'B', prodi: 'Sistem Informasi', alamat: 'Sukabumi' },
+        { nim: '456789123', nama: 'Intan', kelas: 'A', prodi: 'Teknologi Pangan', alamat: 'Surabaya' },
+        { nim: '789123456', nama: 'Finkka', kelas: 'C', prodi: 'Bisnis Digital', alamat: 'Yogyakarta' },
+        { nim: '321654987', nama: 'Marsha', kelas: 'B', prodi: 'Komputerisasi Akuntansi', alamat: 'Semarang' }
+      ];
+      saveToCookie();
+      saveToServerless();
+    }
+    renderTable();
+  </script>
+</body>
+</html>
